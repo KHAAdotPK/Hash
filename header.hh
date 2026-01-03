@@ -3,7 +3,7 @@
  * Q@hacker.pk
  */
 
-#include "lib/String/src/String.hh" 
+#include "../lib/String/src/String.hh" 
 #include "src/keys.hh" 
 
 #ifndef HASH_FOR_ALICIA_KEYS_HEADER_HH
