@@ -27,7 +27,7 @@ g++ -I./path/to/Hash_Package main.cpp -o my_program
 
 ### Usage
 
-The keys class provides a static method generate_keys that accepts both high-level String objects and raw character pointers.
+The keys class provides a static method generate_key that accepts both high-level String objects and raw character pointers.
 
 ```cpp
 #include <iostream> 
@@ -41,7 +41,7 @@ int main() {
     cc_tokenizer::String<char> str("hello");
     
     // Generate a valid index between 0 and 99
-    size_t index = keys::generate_keys(str, BUCKET_COUNT);
+    size_t index = keys::generate_key(str, BUCKET_COUNT);
     
     std::cout << "The calculated index is: " << index << std::endl;
    

@@ -32,7 +32,7 @@ class keys
         * @param array_size The total capacity of the destination data structure, used for index compression.
         * @return A size_type representing the calculated index (bucket) within the range [0, array_size - 1].
         */
-       static cc_tokenizer::string_character_traits<char>::size_type generate_keys(const char* ptr, cc_tokenizer::string_character_traits<char>::size_type array_size) 
+       static cc_tokenizer::string_character_traits<char>::size_type generate_key(const char* ptr, cc_tokenizer::string_character_traits<char>::size_type array_size) 
        {
            // Step 1. Generation: A hash function turns data into a large, unique integer
            cc_tokenizer::string_character_traits<char>::size_type hash = KEYS_COMMON_STARTING_SEED;
@@ -78,10 +78,10 @@ class keys
         * @param array_size The total capacity of the destination data structure for index mapping.
         * @return A size_type representing the calculated index (bucket) within the range [0, array_size - 1].
         */
-       static cc_tokenizer::string_character_traits<char>::size_type generate_keys(cc_tokenizer::String<char>& str, cc_tokenizer::string_character_traits<char>::size_type array_size) 
+       static cc_tokenizer::string_character_traits<char>::size_type generate_key(cc_tokenizer::String<char>& str, cc_tokenizer::string_character_traits<char>::size_type array_size) 
        {
            
-           return generate_keys(str.c_str(), array_size);
+           return generate_key(str.c_str(), array_size);
        }
 
 };
