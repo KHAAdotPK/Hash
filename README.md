@@ -11,6 +11,8 @@ in hash-based data structures.
 - **Fast String Hashing** — djb2 bit-shifting recurrence (`hash * 33 + c`) runs in O(n) time relative to string length.
 - **Automatic Index Compression** — built-in modulo step maps any raw hash into a valid bucket index for a given array size.
 - **Dual Interface** — accepts both null-terminated C-strings (`const char*`) and `std::string` objects via overloading.
+- **Dynamic Rehashing Support** — built-in `next_prime()` and `is_prime()` utilities enable hash tables to grow at runtime when the load factor threshold is exceeded.
+- **Configurable Load Factor** — `KEYS_LOAD_FACTOR_THRESHOLD` controls when rehashing is triggered; defaults to the industry standard `0.7`.
 - **Header-Only** — no compilation step required; include and use.
 
 ---
@@ -24,7 +26,7 @@ Hash/
 │   └── main.cpp        # Collision demonstration example
 └── lib/
     └── src/
-        └── keys.hh     # Keys class — djb2 implementation and compression logic
+        └── keys.hh     # Keys class — djb2, compression, and prime utilities
 ```
 
 ---
@@ -34,7 +36,7 @@ Hash/
 Clone the repository into your project's `lib/` directory:
 
 ```bash
-git clone ttps://github.com/KHAAdotPK/Hash.git ./lib
+git clone https://github.com/KHAAdotPK/Hash.git ./lib
 ```
 
 Then add the include path to your compiler invocation:
@@ -48,8 +50,7 @@ g++ -I./lib/Hash main.cpp -o my_program
 
 ### Usage
 
-`Keys` exposes a single static method `generate_key()` with two overloads.
-Pass your string and the current bucket count — it returns a valid index in `[0, array_size - 1]`.
+`Keys` exposes static methods for hashing, index compression, and prime number utilities.
 
 ```cpp
 #include <iostream>
@@ -60,16 +61,24 @@ int main()
     // Bucket count should be a prime number for best distribution.
     // KEYS_COMMON_STARTING_SIZE (1009) is the recommended starting value
     // for dynamic hash tables before any rehashing occurs.
-    const size_t BUCKET_COUNT = KEYS_COMMON_STARTING_SIZE;
+    size_t bucket_count = KEYS_COMMON_STARTING_SIZE;
 
     // Works with std::string
     std::string word = "hello";
-    size_t index = Keys::generate_key(word, BUCKET_COUNT);
+    size_t index = Keys::generate_key(word, bucket_count);
     std::cout << "index: " << index << std::endl;
 
     // Also works with raw C-strings
-    size_t index2 = Keys::generate_key("world", BUCKET_COUNT);
+    size_t index2 = Keys::generate_key("world", bucket_count);
     std::cout << "index: " << index2 << std::endl;
+
+    // When load factor is exceeded, grow to the next prime
+    size_t buckets_used = 750;
+    if ((double)buckets_used / (double)bucket_count > KEYS_LOAD_FACTOR_THRESHOLD)
+    {
+        bucket_count = Keys::next_prime(bucket_count);
+        // rehash all existing entries with new bucket_count
+    }
 
     return 0;
 }
@@ -106,6 +115,36 @@ reindexed by calling `generate_key()` again with the new array size.
 
 ---
 
+### Dynamic Rehashing
+
+The `Keys` class provides two utilities to support runtime table growth:
+
+- `Keys::is_prime(n)` — returns `true` if `n` is prime, using the `6k ± 1` trial division optimisation.
+- `Keys::next_prime(n)` — returns the smallest prime greater than `n`, used to compute the new bucket count after a rehash.
+
+The recommended growth sequence starting from `KEYS_COMMON_STARTING_SIZE`:
+
+```
+1009 → 1013 → 1019 → 1021 → ...
+```
+
+The load factor threshold is controlled by:
+
+```cpp
+#define KEYS_LOAD_FACTOR_THRESHOLD 0.7
+```
+
+This can be overridden before including `header.hh` if your use case requires a different threshold. Always cast to `double` when evaluating the load factor to avoid integer division truncating the result to zero:
+
+```cpp
+if ((double)buckets_used / (double)bucket_count > KEYS_LOAD_FACTOR_THRESHOLD)
+{
+    bucket_count = Keys::next_prime(bucket_count);
+}
+```
+
+---
+
 ### Collision Handling
 
 No hash function eliminates collisions entirely. Two distinct strings may compress
@@ -116,6 +155,8 @@ belongs to the hash table that calls it. Two standard strategies are:
 |---|---|
 | **Chaining** | Each bucket holds a linked list of all entries that map to it |
 | **Linear Probing** | On collision, scan forward until an empty bucket is found |
+
+---
 
 ### Collision Example
 
@@ -147,4 +188,4 @@ any collision-handling strategy built on top of it.
 
 ### License
 
-This project is governed by a license, the details of which can be located in the accompanying file named 'LICENSE.' Please refer to this file for comprehensive information.
+See `LICENSE` for details.

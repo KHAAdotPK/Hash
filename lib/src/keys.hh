@@ -3,56 +3,8 @@
     Q@hackers.pk
  */
 
-/*
-    Hash Table Size (array_size)
-    ----------------------------
-    To build the hash table → need array_size
-    To know array_size     → need vocabulary count
-    To know vocabulary     → need to scan the corpus
-    So you must scan TWICE → or pre-allocate blindly
-
-    Option 1 — Two-Pass Approach (simplest fix)
-    - Pass 1: Scan corpus, count unique words → get vocabulary size
-    - Pass 2: Build hash table with correct array_size
-    - Clean but reads corpus twice, expensive for large corpora
-
-    Option 2 — Over-allocate with a Load Factor
-    ```C++
-    // If you expect ~50,000 unique words, allocate ~1.5x with a prime
-    size_t array_size = 76963; // prime near 50000 * 1.5
-    ```
-    Industry standard is to keep load factor below 0.7 (70% full).
-    Most real corpora have predictable vocabulary ranges (50k–200k words).
-
-    Option 3 — Dynamic Rehashing (most robust)
-    - Start with a small prime (e.g. 1009) 
-      - It's how many buckets your hash table allocates at the start
-      - When load factor is exceeded, you grow this (e.g. 1009 → 2027 → 4057...)    
-    - Track how full the table gets
-    - When load factor exceeds threshold (e.g. > 0.7) → allocate a new larger array, rehash everything
-    - This is what std::unordered_map does internally
- */ 
-
 #ifndef HASH_KEYS_HEADER_HH
 #define HASH_KEYS_HEADER_HH
-
-#ifndef KEYS_COMMON_STARTING_SIZE
-#define KEYS_COMMON_STARTING_SIZE 1009 // Prime number, Option 3
-#endif
-
-/*
-    Bitwise Left Shift Multiplier
-    ---------------------------
-    This is the multiplier used in the djb2 algorithm.    
-    It is a prime number that is used to multiply the hash by 33...  
-    (hash << 5) + hash is equivalent to hash * 33
- */
-#define KEYS_BITWISE_LEFT_SHIFT_MULTIPLIER 5
-/*
- * Common starting seed. Must be a prime number.
- * 5381 is the historically proven seed for the djb2 algorithm that provides better distribution and fewer collisions.
- */
-#define KEYS_COMMON_STARTING_SEED 5381
 
 class Keys
 {        
@@ -144,6 +96,49 @@ class Keys
        {
            
            return generate_key(str.c_str(), array_size);
+       }
+
+       static size_t next_prime(size_t n)
+       {
+           if (n <= 1) // 1 is not a prime number
+           {
+             return 2;
+           }
+           if (n % 2 == 0) // if n is divisible by 2, it is not a prime number
+           {
+               n++;
+           }
+           while (!is_prime(n)) // while n is not a prime number
+           {
+               n += 2; // increment n by 2
+           }
+
+           return n;
+       }
+
+       static bool is_prime(size_t n)
+       {
+           if (n <= 1) // 1 is not a prime number
+           {
+               return false;
+           }
+           if (n <= 3) // 2 and 3 are prime numbers
+           {
+               return true;
+           }
+           if (n % 2 == 0 || n % 3 == 0) // if n is divisible by 2 or 3, it is not a prime number
+           {
+               return false;
+           }
+           for (size_t i = 5; i * i <= n; i = i + 6) // check for divisibility by numbers of the form 6k ± 1
+           {
+               if (n % i == 0 || n % (i + 2) == 0) // if n is divisible by i or i + 2, it is not a prime number
+               {
+                   return false;
+               }
+           }
+
+           return true;
        }
 };
 
