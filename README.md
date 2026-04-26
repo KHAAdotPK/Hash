@@ -63,7 +63,9 @@ int main()
     // for dynamic hash tables before any rehashing occurs.
     size_t bucket_count = KEYS_COMMON_STARTING_SIZE;
 
-    // Works with std::string
+    // Works with std::string — note: generate_key() takes std::string& (non-const).
+    // Pass a named, non-const variable; passing a temporary or const reference
+    // will not compile with the current overload signature.
     std::string word = "hello";
     size_t index = Keys::generate_key(word, bucket_count);
     std::cout << "index: " << index << std::endl;
@@ -72,11 +74,12 @@ int main()
     size_t index2 = Keys::generate_key("world", bucket_count);
     std::cout << "index: " << index2 << std::endl;
 
-    // When load factor is exceeded, grow to the next prime
+    // When load factor is exceeded, grow to the next prime roughly double
+    // the current bucket count to amortise rehashing cost.
     size_t buckets_used = 750;
     if ((double)buckets_used / (double)bucket_count > KEYS_LOAD_FACTOR_THRESHOLD)
     {
-        bucket_count = Keys::next_prime(bucket_count);
+        bucket_count = Keys::next_prime(bucket_count * 2);
         // rehash all existing entries with new bucket_count
     }
 
@@ -120,13 +123,7 @@ reindexed by calling `generate_key()` again with the new array size.
 The `Keys` class provides two utilities to support runtime table growth:
 
 - `Keys::is_prime(n)` — returns `true` if `n` is prime, using the `6k ± 1` trial division optimisation.
-- `Keys::next_prime(n)` — returns the smallest prime greater than `n`, used to compute the new bucket count after a rehash.
-
-The recommended growth sequence starting from `KEYS_COMMON_STARTING_SIZE`:
-
-```
-1009 → 1013 → 1019 → 1021 → ...
-```
+- `Keys::next_prime(n)` — returns the smallest prime **strictly greater than** `n`, used to compute the new bucket count after a rehash.
 
 The load factor threshold is controlled by:
 
@@ -139,9 +136,18 @@ This can be overridden before including `header.hh` if your use case requires a 
 ```cpp
 if ((double)buckets_used / (double)bucket_count > KEYS_LOAD_FACTOR_THRESHOLD)
 {
-    bucket_count = Keys::next_prime(bucket_count);
+    // Grow to roughly 2x current size, landing on the nearest prime.
+    // Calling next_prime(bucket_count) without doubling first produces
+    // only a tiny increment (e.g. 1009 → 1013) and triggers rehashing
+    // again almost immediately.
+    bucket_count = Keys::next_prime(bucket_count * 2);
 }
 ```
+
+> **Note:** `next_prime()` is not bounded against `size_t` overflow. If `n` is near
+> the largest prime representable by `size_t`, the internal loop will overflow and
+> behave incorrectly. This edge case is unlikely in practice but is worth keeping in
+> mind for long-running or memory-intensive workloads.
 
 ---
 
@@ -186,6 +192,25 @@ any collision-handling strategy built on top of it.
 
 ---
 
+### Known Issues
+
+- **`generate_key(std::string&, size_t)` accepts only non-const lvalue references.**
+  Passing a `const std::string&` or a temporary string literal will fail to compile.
+  If broader const-correctness is required, change the signature in `keys.hh` to
+  `const std::string&` — the implementation delegates directly to the `const char*`
+  overload and is unaffected by this change.
+
+- **`#endif` guard comment mismatch in `keys.hh`.**
+  The closing `#endif` in `lib/src/keys.hh` is annotated `// HASH_HEADER_HH` but the
+  actual include guard defined at the top of that file is `HASH_KEYS_HEADER_HH`.
+  This is cosmetic and does not affect compilation, but may cause confusion when
+  navigating the codebase.
+
+- **`next_prime()` is unbounded near `size_t` maximum.**
+  See the note in the Dynamic Rehashing section above.
+
+---
+
 ### License
 
-See `LICENSE` for details.
+This project is governed by a license, the details of which can be located in the accompanying file named 'LICENSE.' Please refer to this file for comprehensive information.

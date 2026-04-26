@@ -36,6 +36,8 @@
 #ifndef HASH_HEADER_HH
 #define HASH_HEADER_HH
 
+#include <string>
+
 /*
  * Common starting size for the hash table.
  * Must be a prime number.

@@ -98,16 +98,31 @@ class Keys
            return generate_key(str.c_str(), array_size);
        }
 
+       /*
+        * @brief Generates the smallest prime number strictly greater than n.
+        *
+        * @param n The number to start searching from.
+        * @return The smallest prime number greater than n.
+        */
        static size_t next_prime(size_t n)
        {
-           if (n <= 1) // 1 is not a prime number
+           if (n <= 1) // 1 is not a prime number. better is (n < 2)
            {
              return 2;
            }
-           if (n % 2 == 0) // if n is divisible by 2, it is not a prime number
+
+           /* 
+            * To prevent this implementation from returning n itself if n is already prime.
+            * Always start checking from the next number. 
+            */
+           n++;
+
+           // If n is even, increment it to make it odd (since all even numbers > 2 are not prime)
+           if (n % 2 == 0)
            {
                n++;
            }
+           
            while (!is_prime(n)) // while n is not a prime number
            {
                n += 2; // increment n by 2
@@ -116,6 +131,12 @@ class Keys
            return n;
        }
 
+       /*
+        * Checks if a number is a prime number.
+        *
+        * @param n The number to check.
+        * @return True if n is a prime number, false otherwise.
+        */
        static bool is_prime(size_t n)
        {
            if (n <= 1) // 1 is not a prime number
@@ -139,6 +160,11 @@ class Keys
            }
 
            return true;
+
+           /*
+                - For very large values of size_t, i * i <= n can technically overflow before it fails the condition. A safer check is i <= n / i.
+                - If n is the largest prime representable by size_t, this will enter an infinite loop or overflow. (Rare, but worth noting for robust library code).
+            */
        }
 };
 
