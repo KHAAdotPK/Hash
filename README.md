@@ -160,7 +160,7 @@ belongs to the hash table that calls it. Two standard strategies are:
 | Strategy | Behaviour |
 |---|---|
 | **Chaining** | Each bucket holds a linked list of all entries that map to it |
-| **Linear Probing** | On collision, scan forward until an empty bucket is found |
+| [**Linear Probing**](https://github.com/KHAAdotPK/Parser/blob/main/DOCUMENTS/LINEAR_PROBING.md) | On collision, scan forward until an empty bucket is found |
 
 ---
 
