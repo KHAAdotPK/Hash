@@ -160,7 +160,23 @@ belongs to the hash table that calls it. Two standard strategies are:
 | Strategy | Behaviour |
 |---|---|
 | **Chaining** | Each bucket holds a linked list of all entries that map to it |
-| [**Linear Probing**](https://github.com/KHAAdotPK/Parser/blob/main/DOCUMENTS/LINEAR_PROBING.md) | On collision, scan forward until an empty bucket is found |
+| **Linear Probing** | On collision, scan forward until an empty bucket is found |
+
+#### Linear Probing — detailed documentation
+
+A full technical reference on linear probing as it is implemented in this project is
+available in [`LINEAR_PROBING.md`](https://github.com/KHAAdotPK/Parser/blob/main/DOCUMENTS/LINEAR_PROBING.md).
+
+It covers:
+
+- What a hash collision is and why it is unavoidable
+- The probing formula — `probe = (key + 1) % bucket_count` — and wrap-around behaviour
+- The three slot states the probe loop must handle (empty, matching word, different word)
+- Step-by-step insertion and lookup walkthroughs using the `"hello"` / `"start"` collision pair from `usage/main.cpp`
+- How linear probing is re-applied during rehashing when the table grows
+- Primary clustering — why sequential probing causes runs of occupied buckets to grow faster than the load factor alone predicts, and how the 0.7 threshold is derived from Knuth's formula
+- Why naive deletion (`slot = nullptr`) silently breaks lookup chains, and the three standard fixes: tombstone markers, backward shift deletion, and Robin Hood hashing
+- A summary reference table covering every key concept
 
 ---
 

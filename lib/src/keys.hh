@@ -47,14 +47,16 @@ class Keys
         * @return           Bucket index in the range [0, array_size - 1].
         */
        static size_t generate_key(const char* ptr, size_t array_size) 
-       {
-           // Step 1. Generation: A hash function turns data into a large, unique integer
+       {   
+           /* Step 1. Generation: A hash function turns data into a large, unique integer */        
            size_t hash = KEYS_COMMON_STARTING_SEED;
 
            for (size_t i = 0; ptr[i] != '\0'; i++)
            { 
-               // hash * 33 + char: unsigned overflow is defined as modulo 2^n in C++   
-               hash = ((hash << KEYS_BITWISE_LEFT_SHIFT_MULTIPLIER) + hash) + (unsigned char)*(ptr + i);
+               /* 
+                * hash * 33 + char: unsigned overflow is defined as modulo 2^n in C++   
+                */
+                hash = ((hash << KEYS_BITWISE_LEFT_SHIFT_MULTIPLIER) + hash) + (unsigned char)*(ptr + i);
            }
                      
            /*
@@ -88,13 +90,12 @@ class Keys
         * primary generate_key(const char*, size_t) implementation.
         * All hashing logic, guarantees, and caveats documented there apply here.
         *
-        * @param str        Reference to the std::string to be hashed.
+        * @param str        Constant reference to the std::string to be hashed.
         * @param array_size Current bucket count of the destination hash table. Must be non-zero.
         * @return           Bucket index in the range [0, array_size - 1].
         */
-       static size_t generate_key(std::string& str, size_t array_size) 
-       {
-           
+       static size_t generate_key(const std::string& str, size_t array_size) 
+       {           
            return generate_key(str.c_str(), array_size);
        }
 
@@ -165,7 +166,6 @@ class Keys
                 - For very large values of size_t, i * i <= n can technically overflow before it fails the condition. A safer check is i <= n / i.
                 - If n is the largest prime representable by size_t, this will enter an infinite loop or overflow. (Rare, but worth noting for robust library code).
             */
-       }
-};
-
-#endif // HASH_HEADER_HH 
+       }    
+};  
+#endif // HASH_KEYS_HEADER_HH 
