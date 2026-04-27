@@ -10,7 +10,7 @@ in hash-based data structures.
 
 - **Fast String Hashing** — djb2 bit-shifting recurrence (`hash * 33 + c`) runs in O(n) time relative to string length.
 - **Automatic Index Compression** — built-in modulo step maps any raw hash into a valid bucket index for a given array size.
-- **Dual Interface** — accepts both null-terminated C-strings (`const char*`) and `std::string` objects via overloading.
+- **Dual Interface** — accepts both null-terminated C-strings (`const char*`) and `const std::string&` objects via overloading.
 - **Dynamic Rehashing Support** — built-in `next_prime()` and `is_prime()` utilities enable hash tables to grow at runtime when the load factor threshold is exceeded.
 - **Configurable Load Factor** — `KEYS_LOAD_FACTOR_THRESHOLD` controls when rehashing is triggered; defaults to the industry standard `0.7`.
 - **Header-Only** — no compilation step required; include and use.
@@ -63,9 +63,7 @@ int main()
     // for dynamic hash tables before any rehashing occurs.
     size_t bucket_count = KEYS_COMMON_STARTING_SIZE;
 
-    // Works with std::string — note: generate_key() takes std::string& (non-const).
-    // Pass a named, non-const variable; passing a temporary or const reference
-    // will not compile with the current overload signature.
+    // Works with std::string (const reference — temporaries and const variables both accepted).
     std::string word = "hello";
     size_t index = Keys::generate_key(word, bucket_count);
     std::cout << "index: " << index << std::endl;
@@ -209,18 +207,6 @@ any collision-handling strategy built on top of it.
 ---
 
 ### Known Issues
-
-- **`generate_key(std::string&, size_t)` accepts only non-const lvalue references.**
-  Passing a `const std::string&` or a temporary string literal will fail to compile.
-  If broader const-correctness is required, change the signature in `keys.hh` to
-  `const std::string&` — the implementation delegates directly to the `const char*`
-  overload and is unaffected by this change.
-
-- **`#endif` guard comment mismatch in `keys.hh`.**
-  The closing `#endif` in `lib/src/keys.hh` is annotated `// HASH_HEADER_HH` but the
-  actual include guard defined at the top of that file is `HASH_KEYS_HEADER_HH`.
-  This is cosmetic and does not affect compilation, but may cause confusion when
-  navigating the codebase.
 
 - **`next_prime()` is unbounded near `size_t` maximum.**
   See the note in the Dynamic Rehashing section above.
