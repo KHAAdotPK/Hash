@@ -55,7 +55,9 @@
  * 0.7 is the industry standard threshold — beyond it, collision chains
  * grow long enough to meaningfully degrade lookup performance.
  */
+#ifndef KEYS_LOAD_FACTOR_THRESHOLD
 #define KEYS_LOAD_FACTOR_THRESHOLD 0.7
+#endif
 
 /*
     Bitwise Left Shift Multiplier
