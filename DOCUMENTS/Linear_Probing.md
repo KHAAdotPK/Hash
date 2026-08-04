@@ -50,6 +50,8 @@ Contents:                                       "hello"
 Probe → bucket 8 (empty) → insert "start" there.
 ```
 
+One of the main hardware advantages of linear probing over separate chaining (linked lists per bucket) is CPU cache line locality. Because adjacent buckets live in contiguous memory, scanning through probe + 1, probe + 2, etc., hits the CPU's L1/L2 cache prefetcher, drastically reducing memory latency compared to pointer-chasing across heap allocations.
+
 ---
 
 ## 3. The Probing Formula
@@ -91,46 +93,141 @@ These three cases map directly to the `if / else if / (implicit continue)` struc
 The code first checks whether the initial bucket is empty:
 
 ```cpp
-size_t key = Keys::generate_key(token, bucket_count);
-
-if (hash_table[key] == nullptr)
+for (auto& line : *this)
 {
-    // Bucket is free — direct insert, no probing needed.
-    occurrence = new OccurrenceNode(line_number, token_number, nullptr, nullptr);
-    word_record = new WordRecord(bucket_used, token, occurrence);
-    hash_table[key] = word_record;
-    index_table[word_record->word_id] = key;
-    bucket_used++;
-}
+    for (auto& token : line)                
+    {
+        /*
+            Empty String Check
+            -------------------
+            The word can be an empty string, which is not a valid word for the hash table                        
+         */
+        if (token == "")
+        {
+            continue;
+        }
+
+        size_t key = Keys::generate_key(token, bucket_count); 
+                    
+        if (hash_table[key] == nullptr) // Case A: New Word 
+        {
+            try
+            {
+                 // Create new WordRecord for this unique token and insert into hash table at the generated key
+                 // Token ID always originate at TOKEN_ID_ORIGINATE_AT_VALUE  
+                 hash_table[key] = new WordRecord_new(bucket_used + TOKEN_ID_ORIGINATE_AT_VALUE, token, 1); 
+
+                /*
+                    TOKEN_ID_ORIGINATE_AT_VALUE is the base offset applied to the
+                    first vocabulary word ID. In this codebase it is defined as 1,
+                    so the first real token receives word_id = 1 rather than 0.
+
+                    This keeps the compact word-id space separate from the special
+                    padding slot used by the context-pair pipeline. In the current
+                    Pairs implementation, missing left/right context positions are
+                    filled with the literal value 0 in the context arrays, and that
+                    value is interpreted as padding downstream.
+
+                    The intent is therefore simple: reserve ID 0 for padding/special
+                    handling, while all regular vocabulary tokens start at ID 1 or
+                    higher. This avoids collisions between real vocabulary ids and
+                    the sentinel value used for missing context positions.
+                 */                                                                                                                                       
+            }
+            catch (const std::bad_alloc& e)
+            {
+                throw std::runtime_error("Parser::build_hash_table_very_new(void) Error: " + std::string(e.what()));
+            }
+                        
+            bucket_used++; // Increment count of used buckets for load factor calculation
+        }
+    }
+}       
 ```
 
 If it is not empty and the word does **not** match (`hash_table[key]->word != token`), linear probing begins:
 
 ```cpp
-size_t probe = (key + 1) % bucket_count;   // start one past the collision
-
-while (probe != key)   // full-circle guard — stop if we've checked every bucket
+for (auto& line : *this)
 {
-    if (hash_table[probe] == nullptr)
+    for (auto& token : line)                
     {
-        // ── Case 1: Empty slot ──────────────────────────────────────────────
-        // A different word collided with ours. This slot is free — insert here.
-        occurrence = new OccurrenceNode(line_number, token_number, nullptr, nullptr);
-        word_record = new WordRecord(bucket_used, token, occurrence);
-        hash_table[probe] = word_record;
-        index_table[word_record->word_id] = probe;   // record probe, not key
-        bucket_used++;
-        break;
-    }
-    else if (hash_table[probe]->word == token)
-    {
-        // ── Case 2: Word already exists (found after probing) ───────────────
-        // (handled below — see Section 6)
-        break;
-    }
+        /*
+            Empty String Check
+            -------------------
+            The word can be an empty string, which is not a valid word for the hash table                        
+         */
+        if (token == "")
+        {
+            continue;
+        }
 
-    probe = (probe + 1) % bucket_count;   // advance
-}
+        size_t key = Keys::generate_key(token, bucket_count); 
+                    
+        if (hash_table[key] == nullptr) // Case A: New Word 
+        {
+
+        }
+        else // Case C or D: Collision — need to probe for an empty bucket or a direct match
+        {
+            size_t probe = (key + 1) % bucket_count; // Linear probing
+
+            while (probe != key) // Loop until we circle back to the original key
+            {
+                if (hash_table[probe] == nullptr) // Case D: New Displaced Word
+                {
+                    try
+                    {
+                        // Create new WordRecord for this unique token and insert into hash table at the probed key
+                        hash_table[probe] = new WordRecord_new(bucket_used + TOKEN_ID_ORIGINATE_AT_VALUE, token, 1); 
+
+                        /*
+                            TOKEN_ID_ORIGINATE_AT_VALUE is the base offset applied to the
+                            first vocabulary word ID. In this codebase it is defined as 1,
+                            so the first real token receives word_id = 1 rather than 0.
+
+                            This keeps the compact word-id space separate from the special
+                            padding slot used by the context-pair pipeline. In the current
+                            Pairs implementation, missing left/right context positions are
+                            filled with the literal value 0 in the context arrays, and that
+                            value is interpreted as padding downstream.
+
+                            The intent is therefore simple: reserve ID 0 for padding/special
+                            handling, while all regular vocabulary tokens start at ID 1 or
+                            higher. This avoids collisions between real vocabulary ids and
+                            the sentinel value used for missing context positions.
+                         */                          
+                    }
+                    catch (const std::bad_alloc& e)
+                    {
+                        throw std::runtime_error("Parser::build_hash_table_very_new(void) Error: " + std::string(e.what()));
+                    }
+
+                    bucket_used++; // Increment count of used buckets for load factor calculation
+                    break;
+                }
+                else if (hash_table[probe]->get_word() == token) // Case C: Probe Match
+                {
+                    hash_table[probe]->n++; // Increment frequency count for this word
+                    break;
+                }
+                
+                probe = (probe + 1) % bucket_count; // Move to the next bucket
+                                        
+                // The `% bucket_count` operation makes the probe wrap back to 0 when it
+                // reaches the end of the array, so the search starts over from the beginning.
+                // Each increment advances the probe one bucket at a time, and when it eventually
+                // reaches the original key again, every bucket has been checked and the table
+                // is considered full.
+                if (probe == key)
+                {
+                    throw std::runtime_error("Parser::build_hash_table_very_new(void) Error: Hash table is full, cannot insert new word.");
+                }
+
+            }
+        }
+    }   
+}       
 ```
 
 **Concrete example:**
@@ -144,16 +241,13 @@ Step 1: "hello" → key = 7. Bucket 7 is empty. Insert directly.
 Step 2: "start" → key = 7. Bucket 7 is occupied by "hello". "hello" ≠ "start".
          Begin probing:
            probe = (7 + 1) % 10 = 8 → hash_table[8] == nullptr → INSERT "start" at [8]
-         index_table[word_id_of_start] = 8   ← stores 8, not 7!
-```
 
-Note the comment in the code:
-```cpp
-index_table[word_record->word_id] = probe;   // stores the actual slot, not the original key
+         # To keep track of where each word actually lives, the code may also
+         # maintain an index table that maps a word ID to its stored bucket.
+         # In this example, "start" is stored at bucket 8, so its entry is recorded as 8,
+         # not as the original home bucket 7.
+         index_table[word_id_of_start] = 8
 ```
-This is important. `index_table` maps a word's ID back to **where it actually lives in the array**, which may be different from where the hash function pointed.
-
----
 
 ## 6. Walkthrough — Finding an Existing Word (Collision Path)
 
@@ -168,21 +262,56 @@ Begin probing:
 The code then appends a new `OccurrenceNode` to `"start"`'s existing linked list:
 
 ```cpp
-else if (hash_table[probe]->word == token)
+for (auto& line : *this)
 {
-    // Found the actual matching word — not a new word, just another occurrence
-    word_record = hash_table[probe];
-
-    occurrence = word_record->head;
-    while (occurrence->next != nullptr)  // traverse to the tail of the occurrence list
+    for (auto& token : line)                
     {
-        occurrence = occurrence->next;
-    }
+        /*
+            Empty String Check
+            -------------------
+            The word can be an empty string, which is not a valid word for the hash table                        
+         */
+        if (token == "")
+        {
+            continue;
+        }
 
-    // Append a new occurrence (line number, token position) to the list
-    occurrence->next = new OccurrenceNode(line_number, token_number, nullptr, occurrence);
-    break;
-}
+        size_t key = Keys::generate_key(token, bucket_count); 
+                    
+        if (hash_table[key] == nullptr) // Case A: New Word 
+        {
+
+        }
+        else // Case C or D: Collision — need to probe for an empty bucket or a direct match
+        {
+            size_t probe = (key + 1) % bucket_count; // Linear probing
+
+            while (probe != key) // Loop until we circle back to the original key
+            {
+                if (hash_table[probe] == nullptr) // Case D: New Displaced Word
+                {
+                }
+                else if (hash_table[probe]->get_word() == token) // Case C: Probe Match
+                {
+                    hash_table[probe]->n++; // Increment frequency count for this word
+                    break;
+                }
+                
+                probe = (probe + 1) % bucket_count; // Move to the next bucket
+                
+            }
+            
+            // The `% bucket_count` operation makes the probe wrap back to 0 when it
+            // reaches the end of the array, so the search starts over from the beginning.
+            // Each increment advances the probe one bucket at a time, and when it eventually
+            // reaches the original key again, every bucket has been checked and the table
+            // is considered full.
+            if (probe == key)
+            {
+                throw std::runtime_error("Parser::build_hash_table_very_new(void) Error: Hash table is full, cannot insert new word.");
+            }
+    }
+}       
 ```
 
 This is the same logic used for a word found at its **primary bucket** (no collision), just reached via a probe instead of directly.
@@ -200,29 +329,118 @@ if ((static_cast<double>(bucket_used) / static_cast<double>(bucket_count)) > KEY
 ...the table is grown and all entries are re-inserted into the new array. Crucially, every entry must be **re-probed** in the new table because the larger `bucket_count` changes every hash index:
 
 ```cpp
-size_t new_key = Keys::generate_key(hash_table[i]->word, bucket_count); // new bucket_count
-
-if (new_hash_table[new_key] == nullptr)
+for (auto& line : *this)
 {
-    // Direct placement — no collision in the new table
-    new_hash_table[new_key] = hash_table[i];
-    new_index_table[hash_table[i]->word_id] = new_key;
-}
-else
-{
-    // Collision even in the larger table — probe again
-    size_t probe = (new_key + 1) % bucket_count;
-    while (probe != new_key)
+    for (auto& token : line)                
     {
-        if (new_hash_table[probe] == nullptr)
+        /*
+            Empty String Check
+            -------------------
+            The word can be an empty string, which is not a valid word for the hash table                        
+         */
+        if (token == "")
         {
-            new_hash_table[probe] = hash_table[i];
-            new_index_table[hash_table[i]->word_id] = probe;
-            break;
+            continue;
         }
-        probe = (probe + 1) % bucket_count;
-    }
-}
+
+        size_t key = Keys::generate_key(token, bucket_count); 
+                    
+        if (hash_table[key] == nullptr) // Case A: New Word 
+        {
+
+        }
+        else // Case C or D: Collision — need to probe for an empty bucket or a direct match
+        { 
+        } 
+        
+         /*
+            Check if the hash table needs to be rehashed
+            Note: Integer division would truncate the result, so we cast to double
+          */
+         if ((static_cast<double>(bucket_used) / static_cast<double>(bucket_count)) > KEYS_LOAD_FACTOR_THRESHOLD)
+         {
+            /*
+                Rehash all existing entries into new table
+                Do NOT reset buckets_used, carry the real count forward
+             */
+            size_t old_bucket_count = bucket_count;
+            bucket_count = Keys::next_prime(bucket_count);
+
+            WordRecord_new** new_hash_table = nullptr; 
+
+            size_t* new_index_table = nullptr; // New index table for the rehashed keys
+
+            try
+            {
+                new_hash_table = new WordRecord_new*[bucket_count](); // Create new hash table with updated bucket count
+                /*
+                 * The () at the end is critical — it zero-initialises every pointer to nullptr.
+                 * Without it, all bucket pointers are uninitialised garbage, and your
+                 * (hash_table[key] == nullptr) check for unique words becomes undefined behaviour.
+                 */
+
+                new_index_table = new size_t[bucket_count + TOKEN_ID_ORIGINATE_AT_VALUE](); // Create new index table with updated bucket count
+                                                                                                               // The + TOKEN_ID_ORIGINATE_AT_VALUE is to accommodate the offset for word IDs starting at TOKEN_ID_ORIGINATE_AT_VALUE (typically 1) rather than 0. This ensures that the index_table can store keys for all unique words, including the first one.            
+                /*
+                 * The () at the end is critical — it zero-initialises every entry of this array to zero.
+                 */
+            }
+            catch (const std::bad_alloc& e)
+            {
+                throw std::runtime_error("Parser::build_hash_table_very_new(void) Error: " + std::string(e.what()));
+            }
+            // Rehash all entries from old table into new table
+            for (size_t i = 0; i < old_bucket_count; ++i)
+            {
+                if (hash_table[i] != nullptr)  // Entry exists
+                {
+                    WordRecord_new* entry = hash_table[i];  // Copy the pointer
+                    key = Keys::generate_key(entry->get_word(), bucket_count);
+
+                    if (new_hash_table[key] == nullptr) // Case A: New Word 
+                    {
+                        new_hash_table[key] = entry;
+                                    
+                        *(new_index_table + entry->get_word_id()) = key; // Store the hash key for this unique word in the new index_table, indexed by word_id                                    
+                    }                    
+                    else // Collision — need to probe for an empty bucket or a direct match
+                    {
+                        size_t probe = (key + 1) % bucket_count; // Linear probing
+
+                        while (probe != key) // Loop until we circle back to the original key
+                        {
+                            if (new_hash_table[probe] == nullptr) // Case D: New Displaced Word
+                            {
+                                new_hash_table[probe] = entry;
+                                /*
+                                    entry->get_word_id() returns the unique word ID assigned to this token, which is used as the index into the new index_table. The value stored at that index is the new hash key (probe) where this word now resides in the rehashed table.
+                                    entry->get_word_id() returns a value in the range [TOKEN_ID_ORIGINATE_AT_VALUE, TOKEN_ID_ORIGINATE_AT_VALUE + bucket_used - 1], which is guaranteed to be within the bounds of the new index_table since bucket_used ≤ bucket_count. This ensures that we do not write out of bounds when storing the new hash key.
+                                 */
+                                *(new_index_table + entry->get_word_id()) = probe; // Store the hash key for this unique word in the new index_table, indexed by word_id
+                                            
+                                break;
+                            }
+
+                            probe = (probe + 1) % bucket_count; // Move to the next bucket
+                        }
+
+                        if (probe == key)
+                        {
+                            throw std::runtime_error("Parser::build_hash_table_very_new(void) Error: Hash table is full, cannot insert new word.");
+                        }
+                    }
+                }
+            }
+
+            delete[] hash_table; // Free old table
+            hash_table = new_hash_table; // Point to new table
+
+            // index_table is a size_t** (pointer-to-pointer), so *index_table yields the size_t* array
+            delete[] *index_table; // Free old index table
+            *index_table = new_index_table; // Point to new index table
+        }  
+    }    
+}       
 ```
 
 **Why does rehashing help?**
@@ -264,7 +482,11 @@ bucket_count = 10
 Probe from bucket 8:
   probe = 8 → occupied
   probe = (8+1) % 10 = 9 → occupied
-  probe = (9+1) % 10 = 0 → empty → insert here ✓
+  probe = (9+1) % 10 = 0 → empty → insert here ...
+
+  Array Bounds:  [0]  [1]  ...  [8]  [9]
+                  ▲                  │
+                  └─── Wrap around ──┘
 
 Without modulo:
   probe = 10 → out of bounds → undefined behaviour ✗
