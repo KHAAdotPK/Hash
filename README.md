@@ -163,7 +163,7 @@ belongs to the hash table that calls it. Two standard strategies are:
 #### Linear Probing — detailed documentation
 
 A full technical reference on linear probing as it is implemented in this project is
-available in [`LINEAR_PROBING.md`](https://github.com/KHAAdotPK/Parser/blob/main/DOCUMENTS/LINEAR_PROBING.md).
+available in [`Linear_Probing.md`](https://github.com/KHAAdotPK/Hash/blob/main/DOCUMENTS/Linear_Probing.md).
 
 It covers:
 
