@@ -81,7 +81,7 @@ When a word arrives and its computed bucket `key` is occupied, the probe loop ch
 | Slot state | Meaning | Action |
 |---|---|---|
 | `hash_table[probe] == nullptr` | Empty slot found | Insert new `WordRecord` here |
-| `hash_table[probe]->word == token` | Same word found | Append a new `OccurrenceNode` to its linked list |
+| `hash_table[probe]->word == token` | Same word found | Increment the instance count |
 | Otherwise | Different word, keep searching | Advance probe by 1 |
 
 These three cases map directly to the `if / else if / (implicit continue)` structure inside the probe loop in `build_hash_table()`.
@@ -141,6 +141,10 @@ for (auto& line : *this)
                         
             bucket_used++; // Increment count of used buckets for load factor calculation
         }
+        else if (hash_table[key]->get_word() == token) // Case B: Direct Match
+        {
+            hash_table[key]->n++; // Increment frequency count for this word
+        }
     }
 }       
 ```
@@ -166,7 +170,9 @@ for (auto& line : *this)
                     
         if (hash_table[key] == nullptr) // Case A: New Word 
         {
-
+        }
+        else if (hash_table[key]->get_word() == token) // Case B: Direct Match
+        {                    
         }
         else // Case C or D: Collision — need to probe for an empty bucket or a direct match
         {
@@ -259,8 +265,6 @@ Begin probing:
   probe = 8 → hash_table[8]->word == "start" → MATCH FOUND
 ```
 
-The code then appends a new `OccurrenceNode` to `"start"`'s existing linked list:
-
 ```cpp
 for (auto& line : *this)
 {
@@ -280,10 +284,13 @@ for (auto& line : *this)
                     
         if (hash_table[key] == nullptr) // Case A: New Word 
         {
-
+        }
+        else if (hash_table[key]->get_word() == token) // Case B: Direct Match
+        {        
         }
         else // Case C or D: Collision — need to probe for an empty bucket or a direct match
         {
+            // Linear probing starts at key+1 because the original bucket (key) was already examined
             size_t probe = (key + 1) % bucket_count; // Linear probing
 
             while (probe != key) // Loop until we circle back to the original key
@@ -297,8 +304,7 @@ for (auto& line : *this)
                     break;
                 }
                 
-                probe = (probe + 1) % bucket_count; // Move to the next bucket
-                
+                probe = (probe + 1) % bucket_count; // Move to the next bucket                
             }
             
             // The `% bucket_count` operation makes the probe wrap back to 0 when it
@@ -347,7 +353,9 @@ for (auto& line : *this)
                     
         if (hash_table[key] == nullptr) // Case A: New Word 
         {
-
+        }
+        else if (hash_table[key]->get_word() == token) // Case B: Direct Match
+        {        
         }
         else // Case C or D: Collision — need to probe for an empty bucket or a direct match
         { 
@@ -363,7 +371,7 @@ for (auto& line : *this)
                 Rehash all existing entries into new table
                 Do NOT reset buckets_used, carry the real count forward
              */
-            size_t old_bucket_count = bucket_count;
+            size_t old_bucket_count = bucket_count;            
             bucket_count = Keys::next_prime(bucket_count);
 
             WordRecord_new** new_hash_table = nullptr; 
@@ -392,6 +400,8 @@ for (auto& line : *this)
             // Rehash all entries from old table into new table
             for (size_t i = 0; i < old_bucket_count; ++i)
             {
+                // During rehashing every entry is unique, so the probe only needs to search for an empty slot — there is never a “same word” case to handle.
+
                 if (hash_table[i] != nullptr)  // Entry exists
                 {
                     WordRecord_new* entry = hash_table[i];  // Copy the pointer
@@ -405,6 +415,7 @@ for (auto& line : *this)
                     }                    
                     else // Collision — need to probe for an empty bucket or a direct match
                     {
+                        // Linear probing starts at key+1 because the original bucket (key) was already examined
                         size_t probe = (key + 1) % bucket_count; // Linear probing
 
                         while (probe != key) // Loop until we circle back to the original key
@@ -424,6 +435,10 @@ for (auto& line : *this)
                             probe = (probe + 1) % bucket_count; // Move to the next bucket
                         }
 
+                        // The `% bucket_count` operation makes the probe wrap back to 0 when it
+                        // reaches the end of the array, so the search starts over from the beginning.
+                        // Each increment advances the probe one bucket at a time, and when it eventually
+                        // reaches the original key again, every bucket has been checked and the table is considered full.
                         if (probe == key)
                         {
                             throw std::runtime_error("Parser::build_hash_table_very_new(void) Error: Hash table is full, cannot insert new word.");
@@ -455,6 +470,9 @@ After rehash:   bucket_count = 1013, bucket_used = 707  → load = 0.698 (just u
 > **Note:** The implementation calls `Keys::next_prime(bucket_count)` which returns only the next prime immediately above the current size (e.g. `1009 → 1013`). For large corpora this will trigger rehashing again very quickly. A more robust strategy is `Keys::next_prime(bucket_count * 2)` to roughly double capacity and keep the load factor low for longer.
 
 ```
+Rehashing growth strategy
+-------------------------
+
 `next_prime(bucket_count)` produces minimal growth, the load factor barely
 drops and rehashing triggers again almost immediately:
 
@@ -467,7 +485,9 @@ significantly and the table grows comfortably before the next rehash:
     Before: bucket_count = 1009, bucket_used = 707  → load = 0.700
     After:  bucket_count = 2029, bucket_used = 707  → load = 0.348
 
- In both cases, next_prime() is fine, but the latter would just reduce the frequency of rehashing and save the computational cost of rehashing, by keeping the load factor low for longer.   
+In both cases, next_prime() is fine, but the latter would just reduce the frequency of rehashing and save the computational cost of rehashing, by keeping the load factor low for longer.
+
+Note:- Most production open-addressing hash tables follow the classic “double and then find next prime” growth strategy.   
 ``` 
 
 ---
@@ -542,7 +562,7 @@ The implementation mitigates this by keeping the load factor below `0.7`, which 
 
 ### Why 0.7 is the threshold, not 0.9 or 0.5
 
-The relationship between load factor and average probe length for linear probing is described by the **Knuth formula** (from Donald Knuth's *The Art of Computer Programming*):
+The relationship between load factor and average probe length for linear probing is described by the **Knuth formula** (from Donald E. Knuth, The Art of Computer Programming, Volume 3: Sorting and Searching, 2nd ed., Addison-Wesley, 1998, 6.4):
 
 ```
 average probes (successful lookup)   ≈ ½ × (1 + 1 / (1 - α))
@@ -603,9 +623,27 @@ This is why the rehash loop **also** applies linear probing — it does not blin
 | **Linear probe start** | `probe = (key + 1) % bucket_count` |
 | **Advance** | `probe = (probe + 1) % bucket_count` |
 | **Stop: empty slot** | Insert new `WordRecord` at `probe`; store `probe` (not `key`) in `index_table` |
-| **Stop: word match** | Append new `OccurrenceNode` to existing word's list |
+| **Stop: word match** | Increment the instance count |
 | **Stop: full circle** | `probe == key` — table is full (should not happen at load ≤ 0.7) |
 | **Rehash trigger** | `bucket_used / bucket_count > 0.7` |
 | **Rehash probing** | Same linear probe logic applied to the new, larger array |
 | **Wrap-around** | `% bucket_count` turns the flat array into a logical ring |
 | **Primary weakness** | Primary clustering degrades performance at high load factors |
+
+---
+
+### Alternative Collision Resolution Strategies
+
+While this implementation uses **linear probing**, two other common open-addressing techniques exist:
+
+- **Quadratic probing** – probes with a quadratic step (`key + i²`), which reduces primary clustering but can still suffer from secondary clustering and may fail to find an empty slot even when the table is not full.
+- **Double hashing** – uses a second hash function to determine the probe step size, offering better distribution and fewer clustering problems at the cost of slightly higher computation per probe.
+
+Linear probing was chosen here for its simplicity, excellent cache locality, and ease of implementation, while the load-factor threshold of 0.7 keeps clustering under control.
+
+---
+
+**Author:** Sohail Qayum Malik
+
+This document is licensed under the [KHAAdotPK License](https://github.com/KHAAdotPK/LICENSE).  
+See the full license text here: https://github.com/KHAAdotPK/LICENSE/blob/main/LICENSE
