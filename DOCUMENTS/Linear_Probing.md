@@ -13,6 +13,7 @@
 9. [The Probe Termination Condition](#9-the-probe-termination-condition)
 10. [Known Limitations of Linear Probing](#10-known-limitations-of-linear-probing)
 11. [Summary](#11-summary)
+12. [Alternative Collision Resolution Strategies](#alternative-collision-resolution-strategies)
 
 ---
 
@@ -487,7 +488,7 @@ significantly and the table grows comfortably before the next rehash:
 
 In both cases, next_prime() is fine, but the latter would just reduce the frequency of rehashing and save the computational cost of rehashing, by keeping the load factor low for longer.
 
-Note:- Most production open-addressing hash tables follow the classic “double and then find next prime” growth strategy.   
+**Note:** Most production open-addressing hash tables follow the classic “double and then find next prime” growth strategy.   
 ``` 
 
 ---
@@ -632,7 +633,7 @@ This is why the rehash loop **also** applies linear probing — it does not blin
 
 ---
 
-### Alternative Collision Resolution Strategies
+## 12. Alternative Collision Resolution Strategies
 
 While this implementation uses **linear probing**, two other common open-addressing techniques exist:
 
