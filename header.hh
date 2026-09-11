@@ -60,6 +60,19 @@
 #endif
 
 /*
+ * Table capacity growth factor for dynamic rehashing.
+ * When the load factor threshold is exceeded, the table capacity is multiplied
+ * by this factor before finding the next prime with Keys::next_prime().
+ *
+ * Multiplying by 2 (geometric growth) guarantees amortized O(1) insertions
+ * by roughly halving the load factor upon rehash and keeping the total number
+ * of rehashes across N elements to O(log N).
+ */
+#ifndef KEYS_TABLE_GROWTH_FACTOR
+#define KEYS_TABLE_GROWTH_FACTOR 2
+#endif
+
+/*
     Bitwise Left Shift Multiplier
     ---------------------------
     This is the multiplier used in the djb2 algorithm.    

@@ -228,8 +228,17 @@ class Keys
        /*
         * @brief Generates the smallest prime number strictly greater than n.
         *
-        * @param n The number to start searching from.
-        * @return The smallest prime number greater than n.
+        * @note Dynamic Rehashing:
+        * When expanding a hash table due to load factor overflow, pass:
+        *     Keys::next_prime(bucket_count * KEYS_TABLE_GROWTH_FACTOR)
+        * rather than bucket_count alone. Passing bucket_count alone will only advance
+        * to the immediate next prime (e.g. 1009 -> 1013), causing continuous O(N) rehashes
+        * on almost every subsequent insertion. Multiplying by KEYS_TABLE_GROWTH_FACTOR (2x)
+        * roughly doubles capacity (e.g. 1009 -> 2027), halving the load factor and ensuring
+        * amortized O(1) insertion time.
+        *
+        * @param n The number to start searching from (typically old_bucket_count * KEYS_TABLE_GROWTH_FACTOR).
+        * @return The smallest prime number strictly greater than n.
         */
        static size_t next_prime(size_t n)
        {
