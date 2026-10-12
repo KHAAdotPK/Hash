@@ -44,6 +44,54 @@
 class Keys
 {        
     public:
+
+        /**
+         * @brief Combines two independent 64-bit hashes into a single composite hash.
+         *
+         * This method implements the industry-standard bit-mixing algorithm popularized by the 
+         * Boost library. Instead of hashing the raw binary bytes of the two input structures via a loop, 
+         * it relies on fast, single-step bitwise shifts and an irrational mathematical constant 
+         * (the Golden Ratio) to securely blend the entropy of both fields.
+         *
+         * @note Order Sensitivity:
+         * This function is strictly non-commutative. combine_hashes(A, B) will generate a vastly 
+         * different signature than combine_hashes(B, A). This structural property is essential 
+         * for sequential subword tokenization (e.g., Byte Pair Encoding), where the direction 
+         * and pairing order of subwords dictate unique vocabularies.
+         *
+         * @param parent_hash The primary or left-hand hash (e.g., left_subword_representation_ptr->hash).
+         * @param child_hash  The secondary or right-hand hash to fold in (e.g., right_subword_representation_ptr->hash).
+         * @return A single, highly distributed size_t hash representing the ordered combination of both inputs.
+         */
+        static size_t combine_hashes(size_t parent_hash, size_t child_hash)
+        {
+            /*
+             * 1. Add the right hash to the left hash.
+             * 2. Add the 64-bit golden ratio magic constant to break up repeating patterns and clusters.
+             * 3. Apply asymmetric bitwise shifts (left shift by 6, right shift by 2) to trigger an 
+             *    "avalanche effect", scattering bit modifications across the entire 64-bit integer range.
+             * 4. XOR the scrambled result back into the parent container.
+             */
+            parent_hash ^= child_hash + KEYS_GOLDEN_RATIO_64 + (parent_hash << 6) + (parent_hash >> 2);
+                           
+            return parent_hash;
+        }
+
+        static size_t generate_hash(size_t intermediate_hash, const char* ptr, size_t n)
+        {
+            size_t hash = intermediate_hash;
+
+           for (size_t i = 0; i < n; i++)
+           { 
+               /* 
+                * hash * 33 + char: unsigned overflow is defined as modulo 2^n in C++   
+                */
+                hash = ((hash << KEYS_BITWISE_LEFT_SHIFT_MULTIPLIER) + hash) + (unsigned char)*(ptr + i);
+           }
+                                
+           return hash;
+        }
+
         /*
          * @brief Generates a compressed bucket index from a (optionally) null-terminated C-string.
          *    
@@ -89,6 +137,21 @@ class Keys
             * 2. Chaining: If the index is full, create a linked list of values at that index.
             */       
         }
+
+        static size_t generate_hash(const char* ptr, size_t n)
+        {
+            size_t intermediate_hash = KEYS_COMMON_STARTING_SEED;
+
+            for (size_t i = 0; i < n; i++)
+            { 
+                /* 
+                 * hash * 33 + char: unsigned overflow is defined as modulo 2^n in C++   
+                 */
+                intermediate_hash = ((intermediate_hash << KEYS_BITWISE_LEFT_SHIFT_MULTIPLIER) + intermediate_hash) + (unsigned char)*(ptr + i);
+            }
+
+            return intermediate_hash;
+        }
         
         /*
          * @brief Generates a compressed bucket index from a (optionally) null-terminated C-string.
@@ -133,7 +196,22 @@ class Keys
             * 1. Linear Probing: If the index is full, move to the next available spot in the array.
             * 2. Chaining: If the index is full, create a linked list of values at that index.
             */                  
-        }   
+        }
+        
+        static size_t generate_hash(const char* ptr) 
+        {
+            size_t hash = KEYS_COMMON_STARTING_SEED;
+
+            for (size_t i = 0; ptr[i] != '\0'; i++)
+            { 
+               /* 
+                * hash * 33 + char: unsigned overflow is defined as modulo 2^n in C++   
+                */
+                hash = ((hash << KEYS_BITWISE_LEFT_SHIFT_MULTIPLIER) + hash) + (unsigned char)*(ptr + i);
+            }
+            
+            return hash;
+        }
     
        /**
         * @brief Generates a compressed bucket index from a null-terminated C-string using the djb2 algorithm.
@@ -207,6 +285,11 @@ class Keys
             * 1. Linear Probing: If the index is full, move to the next available spot in the array.
             * 2. Chaining: If the index is full, create a linked list of values at that index.
             */
+       }
+
+       static size_t generate_hash(const std::string& str)
+       {
+           return generate_hash(str.c_str());
        }
 
        /**
